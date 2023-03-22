@@ -3,8 +3,9 @@ use bevy::{
     prelude::{
         App, AppTypeRegistry, BackgroundColor, BuildWorldChildren, Commands, Entity, FromWorld,
         Mut, NodeBundle, Plugin, Reflect, ReflectComponent, Res, ResMut, Resource, Size, Style,
-        Val, World,
+        TextBundle, Val, World,
     },
+    text::TextStyle,
     utils::HashMap,
 };
 use dioxus::{
@@ -15,7 +16,7 @@ use dioxus::{
 pub mod dioxus_elements {
     pub struct node;
     impl node {
-        pub const TAG_NAME: &'static str = "Node";
+        pub const TAG_NAME: &'static str = "node";
         pub const NAME_SPACE: Option<&'static str> = None;
 
         pub const background_color: (&'static str, Option<&'static str>, bool) =
@@ -57,25 +58,41 @@ pub struct GuiParams<'w, 's> {
 }
 
 impl GuiContext {
-    pub fn spawn_template_node(&mut self, world: &mut World, node: &TemplateNode) -> Entity {
+    pub fn spawn_template_node(
+        &mut self,
+        world: &mut World,
+        node: &TemplateNode,
+        parent: Option<Entity>,
+    ) -> Entity {
         use dioxus::core::TemplateNode::*;
-        match node {
-            Element {
+        let entity = match node {
+            &Element {
                 tag,
                 namespace,
                 attrs,
                 children,
-            } => {
-                match tag {
-                    "node" => 
-                    _ => {},
+            } => match tag {
+                "node" => {
+                    let entity = world.spawn(NodeBundle::default()).id();
+                    for child in children {
+                        self.spawn_template_node(world, child, Some(entity));
+                    }
+                    entity
                 }
-            }
-            Text { text } => todo!(),
-            Dynamic { id } => todo!(),
-            DynamicText { id } => todo!(),
+                _ => {
+                    panic!("unknown tag: {tag}")
+                }
+            },
+            &Text { text } => world
+                .spawn(TextBundle::from_section(text, TextStyle::default()))
+                .id(),
+            &Dynamic { id } => todo!(),
+            &DynamicText { id } => todo!(),
+        };
+        if let Some(parent) = parent {
+            world.entity_mut(parent).add_child(entity);
         }
-        world.spawn(NodeBundle::default()).id()
+        entity
     }
 
     pub fn apply_mutation(
@@ -100,7 +117,7 @@ impl GuiContext {
             LoadTemplate { name, index, id } => {
                 let template = templates.get(name).unwrap();
                 let root = template.roots.get(*index).unwrap();
-                let entity = self.spawn_template_node(world, root);
+                let entity = self.spawn_template_node(world, root, None);
                 self.stack.push(entity);
                 self.nodes.insert(*id, entity);
             }
@@ -145,7 +162,7 @@ fn app(cx: Scope) -> Element {
     })
 }
 
-fn startup(/*mut gui: GuiParams, tr: Res<AppTypeRegistry>,*/ world: &mut World) {
+fn startup(world: &mut World) {
     world.resource_scope(|world: &mut World, mut gui: Mut<GuiContext>| {
         let mut vdom = VirtualDom::new(app);
         let mutations = vdom.rebuild();
