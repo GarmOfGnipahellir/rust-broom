@@ -141,11 +141,20 @@ fn app(cx: Scope) -> Element {
     })
 }
 
-fn startup(mut gui: GuiParams) {
+fn startup(/*mut gui: GuiParams, tr: Res<AppTypeRegistry>,*/ world: &mut World) {
     let mut vdom = VirtualDom::new(app);
     let mutations = vdom.rebuild();
-    dbg!(&mutations);
-    gui.apply_mutations(&mutations);
+    // dbg!(&mutations);
+    // gui.apply_mutations(&mutations);
+
+    world.resource_scope(|world: &mut World, tr: Mut<AppTypeRegistry>| {
+        let tr = tr.read();
+        let bgc_refl: Box<dyn Reflect> = Box::new(BackgroundColor::default());
+        let bgc_reg = tr.get_with_short_name("BackgroundColor").unwrap();
+        let bgc_refl_comp = bgc_reg.data::<ReflectComponent>().unwrap();
+        let mut ent = world.spawn_empty();
+        bgc_refl_comp.insert(&mut ent, bgc_refl.as_reflect());
+    })
 }
 
 pub struct GuiPlugin;
