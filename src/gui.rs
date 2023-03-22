@@ -1,4 +1,12 @@
-use bevy::{ecs::system::SystemParam, prelude::*, utils::HashMap};
+use bevy::{
+    ecs::system::SystemParam,
+    prelude::{
+        App, AppTypeRegistry, BackgroundColor, BuildWorldChildren, Commands, Entity, FromWorld,
+        Mut, NodeBundle, Plugin, Reflect, ReflectComponent, Res, ResMut, Resource, Size, Style,
+        Val, World,
+    },
+    utils::HashMap,
+};
 use dioxus::{
     core::{ElementId, Mutation, Mutations},
     prelude::*,
@@ -7,26 +15,11 @@ use dioxus::{
 pub mod dioxus_elements {
     pub struct node;
     impl node {
-        pub const TAG_NAME: &'static str = "node";
+        pub const TAG_NAME: &'static str = "Node";
         pub const NAME_SPACE: Option<&'static str> = None;
 
         pub const background_color: (&'static str, Option<&'static str>, bool) =
             ("background_color", None, false);
-    }
-
-    pub struct component;
-    impl component {
-        pub const TAG_NAME: &'static str = "component";
-        pub const NAME_SPACE: Option<&'static str> = None;
-    }
-
-    pub struct bundle;
-    impl bundle {
-        pub const TAG_NAME: &'static str = "bundle";
-        pub const NAME_SPACE: Option<&'static str> = None;
-
-        pub const components: (&'static str, Option<&'static str>, bool) =
-            ("components", None, false);
     }
 }
 
@@ -60,10 +53,11 @@ impl FromWorld for GuiContext {
 pub struct GuiParams<'w, 's> {
     pub ctx: ResMut<'w, GuiContext>,
     pub commands: Commands<'w, 's>,
+    pub type_registry: Res<'w, AppTypeRegistry>,
 }
 
-impl<'w, 's> GuiParams<'w, 's> {
-    pub fn spawn_template_node(&mut self, node: &TemplateNode) -> Entity {
+impl GuiContext {
+    pub fn spawn_template_node(&mut self, world: &mut World, node: &TemplateNode) -> Entity {
         use dioxus::core::TemplateNode::*;
         match node {
             Element {
@@ -71,22 +65,32 @@ impl<'w, 's> GuiParams<'w, 's> {
                 namespace,
                 attrs,
                 children,
-            } => todo!(),
+            } => {
+                match tag {
+                    "node" => 
+                    _ => {},
+                }
+            }
             Text { text } => todo!(),
             Dynamic { id } => todo!(),
             DynamicText { id } => todo!(),
         }
-        self.commands.spawn(NodeBundle::default()).id()
+        world.spawn(NodeBundle::default()).id()
     }
 
-    pub fn apply_mutation(&mut self, templates: &HashMap<&str, Template>, mutation: &Mutation) {
+    pub fn apply_mutation(
+        &mut self,
+        world: &mut World,
+        templates: &HashMap<&str, Template>,
+        mutation: &Mutation,
+    ) {
         use dioxus::core::Mutation::*;
         match mutation {
             AppendChildren { id, m } => {
-                let parent = *self.ctx.nodes.get(id).unwrap();
+                let parent = *self.nodes.get(id).unwrap();
                 for _ in 0..*m {
-                    let child = self.ctx.stack.pop().unwrap();
-                    self.commands.entity(parent).add_child(child);
+                    let child = self.stack.pop().unwrap();
+                    world.entity_mut(parent).add_child(child);
                 }
             }
             AssignId { path, id } => todo!(),
@@ -96,9 +100,9 @@ impl<'w, 's> GuiParams<'w, 's> {
             LoadTemplate { name, index, id } => {
                 let template = templates.get(name).unwrap();
                 let root = template.roots.get(*index).unwrap();
-                let entity = self.spawn_template_node(root);
-                self.ctx.stack.push(entity);
-                self.ctx.nodes.insert(*id, entity);
+                let entity = self.spawn_template_node(world, root);
+                self.stack.push(entity);
+                self.nodes.insert(*id, entity);
             }
             ReplaceWith { id, m } => todo!(),
             ReplacePlaceholder { path, m } => todo!(),
@@ -118,7 +122,7 @@ impl<'w, 's> GuiParams<'w, 's> {
         }
     }
 
-    pub fn apply_mutations(&mut self, mutations: &Mutations) {
+    pub fn apply_mutations(&mut self, world: &mut World, mutations: &Mutations) {
         let templates = mutations
             .templates
             .iter()
@@ -126,8 +130,8 @@ impl<'w, 's> GuiParams<'w, 's> {
             .map(|template| (template.name, template))
             .collect::<HashMap<_, _>>();
         for mutation in &mutations.edits {
-            self.apply_mutation(&templates, mutation);
-            dbg!(&self.ctx);
+            self.apply_mutation(world, &templates, mutation);
+            dbg!(&self);
         }
     }
 }
@@ -142,10 +146,12 @@ fn app(cx: Scope) -> Element {
 }
 
 fn startup(/*mut gui: GuiParams, tr: Res<AppTypeRegistry>,*/ world: &mut World) {
-    let mut vdom = VirtualDom::new(app);
-    let mutations = vdom.rebuild();
-    // dbg!(&mutations);
-    // gui.apply_mutations(&mutations);
+    world.resource_scope(|world: &mut World, mut gui: Mut<GuiContext>| {
+        let mut vdom = VirtualDom::new(app);
+        let mutations = vdom.rebuild();
+        dbg!(&mutations);
+        gui.apply_mutations(world, &mutations);
+    });
 
     world.resource_scope(|world: &mut World, tr: Mut<AppTypeRegistry>| {
         let tr = tr.read();
