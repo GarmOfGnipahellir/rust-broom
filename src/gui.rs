@@ -13,6 +13,21 @@ pub mod dioxus_elements {
         pub const background_color: (&'static str, Option<&'static str>, bool) =
             ("background_color", None, false);
     }
+
+    pub struct component;
+    impl component {
+        pub const TAG_NAME: &'static str = "component";
+        pub const NAME_SPACE: Option<&'static str> = None;
+    }
+
+    pub struct bundle;
+    impl bundle {
+        pub const TAG_NAME: &'static str = "bundle";
+        pub const NAME_SPACE: Option<&'static str> = None;
+
+        pub const components: (&'static str, Option<&'static str>, bool) =
+            ("components", None, false);
+    }
 }
 
 #[derive(Resource, Debug)]
@@ -50,6 +65,17 @@ pub struct GuiParams<'w, 's> {
 impl<'w, 's> GuiParams<'w, 's> {
     pub fn spawn_template_node(&mut self, node: &TemplateNode) -> Entity {
         use dioxus::core::TemplateNode::*;
+        match node {
+            Element {
+                tag,
+                namespace,
+                attrs,
+                children,
+            } => todo!(),
+            Text { text } => todo!(),
+            Dynamic { id } => todo!(),
+            DynamicText { id } => todo!(),
+        }
         self.commands.spawn(NodeBundle::default()).id()
     }
 
@@ -111,9 +137,6 @@ fn app(cx: Scope) -> Element {
         node {
             background_color: "#ff0000",
             "hello",
-            node {
-                "world"
-            }
         }
     })
 }
